@@ -1,7 +1,7 @@
 # PLDR-Edu: Open-Source Pipeline Leak Detection Robot 🤖💧
 
 <div align="center">
-  <img src="images/Assembly.png" width="600" alt="PLDR-Edu Robot">
+  <img src="Images/Assembly.png" width="600" alt="PLDR-Edu Robot">
 </div>
 
 This project introduces the **PLDR-Edu**, an open-source mobile robot designed as a project-based learning (PBL) platform for the **Mechatronic Systems Design** course at **UTEC**.
