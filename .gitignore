@@ -1,0 +1,14 @@
+# FreeCAD Backups y archivos temporales
+*.FCBak
+*.FCStd1
+*.FCStd2
+*.FCStd3
+*.FCStd4
+*.FCStd5
+*.bck
+*.lock
+
+# Carpetas del sistema o basura de edición
+*~
+.directory
+.DS_Store
