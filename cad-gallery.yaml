@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/schmiddim/freecad-action/refs/tags/v3.0.0/schemas/cad-gallery.schema.json
+title: "Prueba Ensamble FreeCAD Gallery"
+freecad_dir: "CAD"
+metadata_dir: "metadata"
+output_dir: "gallery"

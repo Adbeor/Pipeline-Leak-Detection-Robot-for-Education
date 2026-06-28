@@ -1,0 +1,9 @@
+# FreeCAD backup files
+*.FCBak
+
+# Generated gallery output
+gallery/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
