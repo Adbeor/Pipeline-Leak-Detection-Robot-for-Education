@@ -1,5 +1,5 @@
 import FreeCAD, Part
-import os, glob, zipfile
+import os, glob, zipfile, shutil
 import xml.etree.ElementTree as ET
 
 def get_visible_object_names(fcstd_path):
@@ -28,6 +28,7 @@ def preprocess_file(fcstd_path):
     print(f"Preprocessing {fcstd_path}...")
     visible_names = get_visible_object_names(fcstd_path)
     
+    # Open document to inspect features
     doc = FreeCAD.openDocument(fcstd_path)
     
     visible_features = []
@@ -35,7 +36,7 @@ def preprocess_file(fcstd_path):
         if obj.isDerivedFrom("Part::Feature") and not obj.Shape.isNull():
             # Check visibility from the GuiDocument.xml mapping
             if visible_names is None or obj.Name in visible_names:
-                # Exclude default helper elements like Origin, Axes, Planes if they are not user-created features
+                # Exclude default helper elements (axes, origin planes, etc.)
                 if obj.Name in ["Origin", "X_Axis", "Y_Axis", "Z_Axis", "XY_Plane", "XZ_Plane", "YZ_Plane"]:
                     continue
                 visible_features.append(obj)
@@ -45,25 +46,76 @@ def preprocess_file(fcstd_path):
         FreeCAD.closeDocument(doc.Name)
         return
         
-    print(f"  Found {len(visible_features)} visible features to export: {[o.Name for o in visible_features]}")
+    print(f"  Found {len(visible_features)} visible features: {[o.Name for o in visible_features]}")
     
-    # Create a compound of all visible shapes
-    shapes = [obj.Shape for obj in visible_features]
+    # Case A: Only one visible feature. No splitting needed.
+    if len(visible_features) == 1:
+        export_obj = doc.addObject("Part::Feature", "CombinedGalleryModel")
+        export_obj.Shape = visible_features[0].Shape
+        for obj in list(doc.Objects):
+            if obj.Name != export_obj.Name:
+                doc.removeObject(obj.Name)
+        doc.recompute()
+        doc.save()
+        FreeCAD.closeDocument(doc.Name)
+        print(f"  Saved single-body document: {fcstd_path}")
+        return
+
+    # Case B: Multiple visible features. Split them!
+    # First, close the document to release file handles before copying
+    doc_name = doc.Name
+    FreeCAD.closeDocument(doc_name)
+    
+    base_dir = os.path.dirname(fcstd_path)
+    base_name = os.path.splitext(os.path.basename(fcstd_path))[0]
+    feature_names = [feat.Name for feat in visible_features]
+    
+    # 1. Create separate .FCStd files for each individual visible body
+    for feat_name in feature_names:
+        part_filename = f"{base_name}_{feat_name}.FCStd"
+        part_path = os.path.join(base_dir, part_filename)
+        
+        # Copy the original file
+        shutil.copy2(fcstd_path, part_path)
+        
+        # Open the copy and remove all other visible bodies
+        part_doc = FreeCAD.openDocument(part_path)
+        for name in feature_names:
+            if name != feat_name:
+                try:
+                    part_doc.removeObject(name)
+                except Exception as e:
+                    print(f"  Could not remove {name} in {part_filename}: {e}")
+                    
+        part_doc.recompute()
+        part_doc.save()
+        FreeCAD.closeDocument(part_doc.Name)
+        print(f"  Created individual part file: {part_path}")
+        
+    # 2. Process the original file to act as the main combined Assembly
+    assembly_doc = FreeCAD.openDocument(fcstd_path)
+    assembly_features = []
+    for name in feature_names:
+        obj = assembly_doc.getObject(name)
+        if obj:
+            assembly_features.append(obj)
+            
+    # Combine all visible bodies into a single compound
+    shapes = [obj.Shape for obj in assembly_features]
     compound_shape = Part.makeCompound(shapes)
     
-    # Create a new single feature containing the compound
-    export_obj = doc.addObject("Part::Feature", "CombinedGalleryModel")
+    export_obj = assembly_doc.addObject("Part::Feature", "CombinedGalleryModel")
     export_obj.Shape = compound_shape
     
-    # Delete all other objects from the document so export.py only sees the combined object
-    for obj in list(doc.Objects):
+    # Delete all other objects so the gallery action only exports this assembly
+    for obj in list(assembly_doc.Objects):
         if obj.Name != export_obj.Name:
-            doc.removeObject(obj.Name)
+            assembly_doc.removeObject(obj.Name)
             
-    doc.recompute()
-    doc.save()
-    FreeCAD.closeDocument(doc.Name)
-    print(f"  Saved preprocessed document: {fcstd_path}")
+    assembly_doc.recompute()
+    assembly_doc.save()
+    FreeCAD.closeDocument(assembly_doc.Name)
+    print(f"  Saved combined assembly document: {fcstd_path}")
 
 def main():
     # Source FreeCAD directory (hardcoded to match cad-gallery.yaml)
@@ -71,7 +123,16 @@ def main():
     pattern = os.path.join(freecad_dir, "*.FCStd")
     fcstd_files = glob.glob(pattern)
     
-    for f in fcstd_files:
+    # We must copy the list of files because we will be dynamically adding new files to this folder
+    # and we do not want to recursively process the split files we create!
+    files_to_process = list(fcstd_files)
+    
+    for f in files_to_process:
+        # Ignore already-split files if we are running this multiple times locally
+        basename = os.path.basename(f)
+        if "_" in basename and any(basename.endswith(f"_{suffix}.FCStd") for suffix in ["Base", "Body", "Part"]):
+             continue
+        
         try:
             preprocess_file(f)
         except Exception as e:
