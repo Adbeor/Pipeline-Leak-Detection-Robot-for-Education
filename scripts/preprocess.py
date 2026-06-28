@@ -1,3 +1,4 @@
+print("=== Starting FreeCAD Preprocessing Script ===")
 import FreeCAD, Part
 import os, glob, zipfile, shutil
 import xml.etree.ElementTree as ET
@@ -24,6 +25,24 @@ def get_visible_object_names(fcstd_path):
         return None
     return visible_names
 
+def is_top_level_feature(obj):
+    if not obj.isDerivedFrom("Part::Feature") or obj.Shape.isNull():
+        return False
+    if obj.isDerivedFrom("Sketcher::SketchObject"):
+        return False
+    if obj.isDerivedFrom("PartDesign::FeatureDatum") or "Datum" in obj.TypeId:
+        return False
+    if obj.Name in ["Origin", "X_Axis", "Y_Axis", "Z_Axis", "XY_Plane", "XZ_Plane", "YZ_Plane"]:
+        return False
+        
+    for dep in obj.InList:
+        if dep.isDerivedFrom("Part::Feature"):
+            # Groups or Parts do not count as parent features consuming this shape
+            if dep.isDerivedFrom("App::DocumentObjectGroup") or dep.TypeId == "App::Part":
+                continue
+            return False
+    return True
+
 def preprocess_file(fcstd_path):
     print(f"Preprocessing {fcstd_path}...")
     visible_names = get_visible_object_names(fcstd_path)
@@ -33,12 +52,9 @@ def preprocess_file(fcstd_path):
     
     visible_features = []
     for obj in doc.Objects:
-        if obj.isDerivedFrom("Part::Feature") and not obj.Shape.isNull():
+        if is_top_level_feature(obj):
             # Check visibility from the GuiDocument.xml mapping
             if visible_names is None or obj.Name in visible_names:
-                # Exclude default helper elements (axes, origin planes, etc.)
-                if obj.Name in ["Origin", "X_Axis", "Y_Axis", "Z_Axis", "XY_Plane", "XZ_Plane", "YZ_Plane"]:
-                    continue
                 visible_features.append(obj)
     
     if not visible_features:
@@ -52,9 +68,10 @@ def preprocess_file(fcstd_path):
     if len(visible_features) == 1:
         export_obj = doc.addObject("Part::Feature", "CombinedGalleryModel")
         export_obj.Shape = visible_features[0].Shape
-        for obj in list(doc.Objects):
-            if obj.Name != export_obj.Name:
-                doc.removeObject(obj.Name)
+        names_to_delete = [obj.Name for obj in doc.Objects if obj.Name != export_obj.Name]
+        for name in names_to_delete:
+            if doc.getObject(name) is not None:
+                doc.removeObject(name)
         doc.recompute()
         doc.save()
         FreeCAD.closeDocument(doc.Name)
@@ -62,13 +79,14 @@ def preprocess_file(fcstd_path):
         return
 
     # Case B: Multiple visible features. Split them!
+    feature_names = [feat.Name for feat in visible_features]
+    
     # First, close the document to release file handles before copying
     doc_name = doc.Name
     FreeCAD.closeDocument(doc_name)
     
     base_dir = os.path.dirname(fcstd_path)
     base_name = os.path.splitext(os.path.basename(fcstd_path))[0]
-    feature_names = [feat.Name for feat in visible_features]
     
     # 1. Create separate .FCStd files for each individual visible body
     for feat_name in feature_names:
@@ -82,10 +100,11 @@ def preprocess_file(fcstd_path):
         part_doc = FreeCAD.openDocument(part_path)
         for name in feature_names:
             if name != feat_name:
-                try:
-                    part_doc.removeObject(name)
-                except Exception as e:
-                    print(f"  Could not remove {name} in {part_filename}: {e}")
+                if part_doc.getObject(name) is not None:
+                    try:
+                        part_doc.removeObject(name)
+                    except Exception as e:
+                        print(f"  Could not remove {name} in {part_filename}: {e}")
                     
         part_doc.recompute()
         part_doc.save()
@@ -108,9 +127,10 @@ def preprocess_file(fcstd_path):
     export_obj.Shape = compound_shape
     
     # Delete all other objects so the gallery action only exports this assembly
-    for obj in list(assembly_doc.Objects):
-        if obj.Name != export_obj.Name:
-            assembly_doc.removeObject(obj.Name)
+    names_to_delete = [obj.Name for obj in assembly_doc.Objects if obj.Name != export_obj.Name]
+    for name in names_to_delete:
+        if assembly_doc.getObject(name) is not None:
+            assembly_doc.removeObject(name)
             
     assembly_doc.recompute()
     assembly_doc.save()
@@ -138,5 +158,4 @@ def main():
         except Exception as e:
             print(f"Error preprocessing {f}: {e}")
 
-if __name__ == "__main__":
-    main()
+main()
