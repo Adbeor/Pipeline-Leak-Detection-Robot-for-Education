@@ -27,7 +27,7 @@ jobs:
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
             ghcr.io/schmiddim/freecad-action:latest \
-            freecad -c scripts/preprocess.py
+            scripts/preprocess.py
 
       - name: Build Gallery
         uses: schmiddim/freecad-action@v3
