@@ -21,6 +21,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Preprocess FreeCAD Files
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            ghcr.io/schmiddim/freecad-action:latest \
+            freecad -c scripts/preprocess.py
+
       - name: Build Gallery
         uses: schmiddim/freecad-action@v3
 
