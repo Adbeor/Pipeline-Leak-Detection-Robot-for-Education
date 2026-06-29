@@ -16,3 +16,10 @@ gallery/
 .directory
 .DS_Store
 Thumbs.db
+
+# ESP-IDF / ESP32 build and dependencies
+Firmware/ESP32/build/
+Firmware/ESP32/managed_components/
+**/__pycache__/
+*.pyc
+

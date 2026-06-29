@@ -1,0 +1,8 @@
+## Dependencias del componente principal
+## Coloca este archivo en: main/idf_component.yml
+
+dependencies:
+  idf: ">=5.0"
+  espressif/esp-dsp:
+    version: ">=1.0.0"
+    # esp-dsp provee: dsps_fft2r_fc32, dsps_bit_rev_fc32, dsps_wind_hann_f32
