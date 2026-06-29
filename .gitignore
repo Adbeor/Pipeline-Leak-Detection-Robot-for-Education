@@ -23,3 +23,7 @@ Firmware/ESP32/managed_components/
 **/__pycache__/
 *.pyc
 
+# Local GitHub Action build testing folder
+freecad-action/
+
+

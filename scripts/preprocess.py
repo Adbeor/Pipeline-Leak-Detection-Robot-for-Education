@@ -96,15 +96,23 @@ def preprocess_file(fcstd_path):
         # Copy the original file
         shutil.copy2(fcstd_path, part_path)
         
-        # Open the copy and remove all other visible bodies
+        # Open the copy
         part_doc = FreeCAD.openDocument(part_path)
-        for name in feature_names:
-            if name != feat_name:
+        
+        # Extract the target shape and isolate it
+        target_obj = part_doc.getObject(feat_name)
+        if target_obj:
+            export_obj = part_doc.addObject("Part::Feature", "CombinedGalleryModel")
+            export_obj.Shape = target_obj.Shape
+            
+            # Delete everything else so the action exporter only sees this single solid
+            names_to_delete = [obj.Name for obj in part_doc.Objects if obj.Name != export_obj.Name]
+            for name in names_to_delete:
                 if part_doc.getObject(name) is not None:
                     try:
                         part_doc.removeObject(name)
                     except Exception as e:
-                        print(f"  Could not remove {name} in {part_filename}: {e}")
+                        pass
                     
         part_doc.recompute()
         part_doc.save()
