@@ -26,4 +26,5 @@ Firmware/ESP32/managed_components/
 # Local GitHub Action build testing folder
 freecad-action/
 
-
+# Backup directory for split base CAD files
+CAD_backup/

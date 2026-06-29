@@ -32,6 +32,10 @@ jobs:
       - name: Build Gallery
         uses: schmiddim/freecad-action@v3
 
+      - name: Postprocess Gallery Colors
+        run: |
+          python3 scripts/postprocess.py
+
       - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v5
